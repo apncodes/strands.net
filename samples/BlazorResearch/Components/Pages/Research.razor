@@ -1,0 +1,345 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IModel Model
+@inject IEnumerable<ITool> Tools
+@implements IDisposable
+
+<PageTitle>Research Portal — Strands</PageTitle>
+
+<div class="research-page">
+
+    <!-- ── Search bar ───────────────────────────────── -->
+    <div class="search-section">
+        <h1 class="search-title">What would you like to research?</h1>
+        <p class="search-hint">
+            Try: <button class="hint-btn" @onclick='() => SetTopic("quantum computing")'>quantum computing</button>
+            <button class="hint-btn" @onclick='() => SetTopic("artificial intelligence")'>artificial intelligence</button>
+            <button class="hint-btn" @onclick='() => SetTopic("climate change")'>climate change</button>
+            <button class="hint-btn" @onclick='() => SetTopic("space exploration")'>space exploration</button>
+            <button class="hint-btn" @onclick='() => SetTopic("biotech")'>biotech</button>
+        </p>
+        <div class="search-row">
+            <input class="search-input"
+                   @bind="topic"
+                   @bind:event="oninput"
+                   @onkeypress="HandleKeyPress"
+                   placeholder="Enter a research topic…"
+                   disabled="@isResearching" />
+            <button class="btn-research"
+                    @onclick="StartResearch"
+                    disabled="@(isResearching || string.IsNullOrWhiteSpace(topic))">
+                @if (isResearching)
+                {
+                    <span class="spinner-inline">⟳</span>
+                    <span>Researching…</span>
+                }
+                else
+                {
+                    <span>Research Now →</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Analyst cards ────────────────────────────── -->
+    @if (analysts.Count > 0)
+    {
+        <div class="analysts-section">
+            <h2 class="section-title">
+                Analyst Reports
+                @if (analysts.All(a => a.IsComplete))
+                {
+                    <span class="status-badge done">All complete</span>
+                }
+                else
+                {
+                    <span class="status-badge running">Running in parallel…</span>
+                }
+            </h2>
+            <div class="analysts-grid">
+                @foreach (var analyst in analysts)
+                {
+                    <div class="analyst-card @(analyst.IsComplete ? "complete" : "running")"
+                         style="--accent: @analyst.AccentColor; --accent-bg: @analyst.AccentBg">
+                        <div class="analyst-header">
+                            <span class="analyst-icon">@analyst.Icon</span>
+                            <span class="analyst-name">@analyst.Name</span>
+                            @if (!analyst.IsComplete)
+                            {
+                                <span class="analyst-spinner" title="Analysing…">⟳</span>
+                            }
+                            else
+                            {
+                                <span class="analyst-tokens">@analyst.Tokens tok</span>
+                            }
+                        </div>
+                        <div class="analyst-body">
+                            @if (analyst.IsComplete)
+                            {
+                                <p>@analyst.Result</p>
+                            }
+                            else
+                            {
+                                <p class="analyst-thinking">Analysing @topic…</p>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Synthesis ────────────────────────────────── -->
+    @if (!string.IsNullOrEmpty(synthesis) || isSynthesizing)
+    {
+        <div class="synthesis-section">
+            <h2 class="section-title">
+                Synthesis
+                @if (isSynthesizing)
+                {
+                    <span class="status-badge running">Streaming…</span>
+                }
+            </h2>
+            <div class="synthesis-card">
+                <p class="synthesis-text">@synthesis@(isSynthesizing ? "▌" : "")</p>
+            </div>
+        </div>
+    }
+
+    <!-- ── Structured report ─────────────────────────── -->
+    @if (report is not null)
+    {
+        <div class="report-section">
+            <h2 class="section-title">Research Report</h2>
+            <div class="report-card">
+                <div class="report-grid">
+                    <div class="report-field">
+                        <span class="field-label">Topic</span>
+                        <span class="field-value">@report.Topic</span>
+                    </div>
+                    <div class="report-field">
+                        <span class="field-label">Maturity</span>
+                        <span class="field-value maturity-@report.MaturityLevel.ToLowerInvariant()">@report.MaturityLevel</span>
+                    </div>
+                    <div class="report-field wide">
+                        <span class="field-label">Key Finding</span>
+                        <span class="field-value">@report.KeyFinding</span>
+                    </div>
+                    <div class="report-field wide">
+                        <span class="field-label">Outlook</span>
+                        <span class="field-value">@report.Outlook</span>
+                    </div>
+                    <div class="report-field">
+                        <span class="field-label">Confidence</span>
+                        <span class="field-value">
+                            @for (var i = 1; i <= 10; i++)
+                            {
+                                <span class="dot @(i <= report.ConfidenceScore ? "filled" : "")"></span>
+                            }
+                            <span style="margin-left: 6px; font-size: 13px; color: #64748b">@report.ConfidenceScore/10</span>
+                        </span>
+                    </div>
+                    <div class="report-field">
+                        <span class="field-label">Total Tokens</span>
+                        <span class="field-value token-count">@totalTokens.ToString("N0")</span>
+                    </div>
+                </div>
+                <button class="btn-reset" @onclick="Reset">Research another topic →</button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    // ── State ────────────────────────────────────────────────────────────────────
+
+    private string topic = string.Empty;
+    private bool isResearching;
+    private bool isSynthesizing;
+    private string synthesis = string.Empty;
+    private ResearchReport? report;
+    private int totalTokens;
+    private readonly List<AnalystState> analysts = [];
+    private CancellationTokenSource _cts = new();
+
+    // ── Analyst definitions ───────────────────────────────────────────────────────
+
+    private static readonly (string Name, string Icon, string Prompt, string AccentColor, string AccentBg)[] AnalystDefs =
+    [
+        ("Technology Analyst", "⚙️",
+            """
+            You are a technology analyst specialising in how emerging technologies work.
+            Use the Search tool to retrieve research information on the topic.
+            Then explain: what the technology is, how it works, the current state of development,
+            and the key technical challenges being solved. Be precise and insightful.
+            Write 3-4 concise sentences.
+            """,
+            "#2563eb", "#eff6ff"),
+
+        ("Market Analyst", "📊",
+            """
+            You are a market and business analyst.
+            Use the Search tool to retrieve research information on the topic.
+            Then analyse: the market size and growth rate, key commercial players,
+            investment trends, and who is winning and why. Be data-focused.
+            Write 3-4 concise sentences.
+            """,
+            "#16a34a", "#f0fdf4"),
+
+        ("Trend Analyst", "🔭",
+            """
+            You are a futurist and trends analyst.
+            Use the Search tool to retrieve research information on the topic.
+            Then assess: the most significant recent developments, the 3-5 year outlook,
+            emerging opportunities, and potential disruptions or risks. Be forward-looking.
+            Write 3-4 concise sentences.
+            """,
+            "#7c3aed", "#faf5ff"),
+    ];
+
+    // ── Event handler ─────────────────────────────────────────────────────────────
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = StartResearch();
+    }
+
+    private void SetTopic(string t)
+    {
+        topic = t;
+    }
+
+    private void Reset()
+    {
+        topic = string.Empty;
+        synthesis = string.Empty;
+        report = null;
+        totalTokens = 0;
+        analysts.Clear();
+    }
+
+    // ── Research orchestration ────────────────────────────────────────────────────
+
+    private async Task StartResearch()
+    {
+        if (isResearching || string.IsNullOrWhiteSpace(topic)) return;
+
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+
+        isResearching = true;
+        isSynthesizing = false;
+        synthesis = string.Empty;
+        report = null;
+        totalTokens = 0;
+        analysts.Clear();
+
+        // Create analyst state objects in order matching AnalystDefs.
+        foreach (var (name, icon, _, accent, accentBg) in AnalystDefs)
+            analysts.Add(new AnalystState(name, icon, accent, accentBg));
+
+        await InvokeAsync(StateHasChanged);
+
+        var toolsArray = Tools.ToArray();
+        var currentTopic = topic;
+
+        // Run all 3 analysts in parallel. Each card updates as its agent completes.
+        var analystTasks = AnalystDefs.Select((def, i) => RunAnalystAsync(
+            index:     i,
+            prompt:    $"Research topic: {currentTopic}",
+            systemPrompt: def.Prompt,
+            tools:     toolsArray,
+            ct:        ct)).ToArray();
+
+        await Task.WhenAll(analystTasks);
+
+        if (ct.IsCancellationRequested) return;
+
+        // Synthesis phase — streams token-by-token via StateHasChanged.
+        isSynthesizing = true;
+        await InvokeAsync(StateHasChanged);
+
+        var combinedFindings = string.Join("\n\n", analysts.Select(a =>
+            $"## {a.Name}\n{a.Result}"));
+
+        var synthesisAgent = new Agent(Model,
+            systemPrompt: """
+                You are a senior research director writing the executive summary of a multi-analyst report.
+                You have received separate analyses from a technology analyst, market analyst, and trend analyst.
+                Synthesise their findings into a coherent 4-5 sentence executive summary that integrates all three perspectives.
+                Highlight the most important insight and close with a clear outlook statement.
+                """);
+
+        await foreach (var evt in synthesisAgent.StreamAsync(combinedFindings, ct).ConfigureAwait(false))
+        {
+            if (evt is TextDeltaEvent delta)
+            {
+                synthesis += delta.Delta;
+                await InvokeAsync(StateHasChanged);
+            }
+            else if (evt is AgentCompleteEvent complete)
+            {
+                totalTokens += complete.Result.Usage.Total;
+            }
+        }
+
+        isSynthesizing = false;
+        await InvokeAsync(StateHasChanged);
+
+        if (ct.IsCancellationRequested) return;
+
+        // Structured extraction.
+        var extractor = new Agent(Model);
+        report = await extractor.GetStructuredOutputAsync<ResearchReport>(
+            $"Extract a structured research report from this executive summary for the topic '{currentTopic}':\n\n{synthesis}",
+            ct);
+
+        isResearching = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RunAnalystAsync(
+        int index, string prompt, string systemPrompt, ITool[] tools, CancellationToken ct)
+    {
+        try
+        {
+            var agent = new Agent(Model, systemPrompt: systemPrompt, tools: tools);
+            var result = await agent.InvokeAsync(prompt, ct).ConfigureAwait(false);
+
+            analysts[index].Result = result.Message;
+            analysts[index].Tokens = result.Usage.Total;
+            analysts[index].IsComplete = true;
+            totalTokens += result.Usage.Total;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // Research was reset — silently abort.
+        }
+    }
+
+    // ── IDisposable ───────────────────────────────────────────────────────────────
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
+    // ── Inner types ───────────────────────────────────────────────────────────────
+
+    private sealed class AnalystState(string name, string icon, string accentColor, string accentBg)
+    {
+        public string Name        { get; } = name;
+        public string Icon        { get; } = icon;
+        public string AccentColor { get; } = accentColor;
+        public string AccentBg    { get; } = accentBg;
+        public bool   IsComplete  { get; set; }
+        public string Result      { get; set; } = string.Empty;
+        public int    Tokens      { get; set; }
+    }
+}

@@ -1,0 +1,57 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+artifacts-*/
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+.ionide/
+
+# Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Publish output
+publish/
+**/Properties/launchSettings.json
+
+# Scratch directories (CLAUDE.md §prohibited)
+TypeChecker/
+generated/
+
+# Claude Code
+.kiro/
+.claude/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Environment / secrets
+.env
+.env.*
+*.pfx
+*.p12
+appsettings.local.json
+appsettings.Development.json
+
+# Logs
+*.log
+logs/

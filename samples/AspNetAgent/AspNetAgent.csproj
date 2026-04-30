@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Strands.Core" Version="0.1.0-preview.2" />
+    <PackageReference Include="Strands.Extensions.DI" Version="0.1.0-preview.2" />
+    <PackageReference Include="Strands.Models.Bedrock" Version="0.1.0-preview.2" />
+    <PackageReference Include="Strands.Tools" Version="0.1.0-preview.2" />
+  </ItemGroup>
+
+</Project>

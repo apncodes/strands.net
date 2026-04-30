@@ -1,0 +1,56 @@
+# Dockerfile.agentcore — template for deploying a Strands.NET agent to AgentCore Runtime
+#
+# AgentCore Runtime requirements:
+#   - ARM64 container image (linux/arm64)
+#   - Agent must listen on port 8080
+#   - Agent must respond to GET /health with HTTP 200
+#   - Agent must respond to POST /invocations
+#
+# Usage: copy this file to your agent project directory and rename to "Dockerfile".
+# Then build and push to ECR before deploying to AgentCore Runtime.
+#
+# Build (on ARM64 host or with emulation):
+#   docker buildx build --platform linux/arm64 -t my-agent:latest .
+#
+# Push to ECR:
+#   aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
+#   docker tag my-agent:latest <account>.dkr.ecr.<region>.amazonaws.com/my-agent:latest
+#   docker push <account>.dkr.ecr.<region>.amazonaws.com/my-agent:latest
+
+# ── Build stage ─────────────────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+WORKDIR /src
+
+# Restore dependencies first (layer cache optimisation)
+COPY *.csproj ./
+RUN dotnet restore --runtime linux-arm64
+
+# Build and publish
+COPY . ./
+RUN dotnet publish \
+    --configuration Release \
+    --runtime linux-arm64 \
+    --self-contained false \
+    --output /app/publish
+
+# ── Runtime stage ────────────────────────────────────────────────────────────────────
+# ARM64 is required by AgentCore Runtime
+FROM --platform=linux/arm64 mcr.microsoft.com/dotnet/aspnet:10.0
+
+WORKDIR /app
+
+# AgentCore Runtime routes traffic to port 8080
+EXPOSE 8080
+
+# Copy published output from build stage
+COPY --from=build /app/publish ./
+
+# Run as non-root (security best practice)
+USER app
+
+# UseAgentCorePort(8080) in Program.cs handles the binding.
+# ASPNETCORE_URLS is set here as a fallback.
+ENV ASPNETCORE_URLS=http://+:8080
+
+ENTRYPOINT ["dotnet", "AgentCoreSample.dll"]
