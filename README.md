@@ -13,6 +13,7 @@
 ```bash
 dotnet add package Strands.Core
 dotnet add package Strands.Models.Bedrock
+dotnet add package Strands.Tools
 ```
 
 ```csharp
