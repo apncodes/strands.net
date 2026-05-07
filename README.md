@@ -136,6 +136,7 @@ var agent = app.Services.GetRequiredService<IAgent>();
 - **MCP** — connect any Model Context Protocol server (stdio or SSE) via `McpToolProvider`
 - **A2A protocol** — expose agents over HTTP with `MapA2AEndpoint`; call remote agents with `A2AAgent` (cross-framework, cross-language)
 - **AgentCore Runtime** *(optional)* — `MapAgentCoreEndpoints()` deploys any agent to Amazon Bedrock AgentCore Runtime in one line; managed Memory, Browser, and Code Interpreter tools available via `Strands.AgentCore`
+- **AgentCore Gateway** *(optional)* — `AgentCoreGatewayToolProvider` connects to an Amazon Bedrock AgentCore Gateway MCP endpoint and exposes its tools as `ITool` instances; supports IAM SigV4, JWT Bearer, and network-isolated (no-auth) modes; `AddAgentCoreGatewayTools()` registers gateway tools directly into the DI container
 
 ---
 
@@ -196,6 +197,48 @@ var writerAgent  = new Agent(model, tools: [researchTool]);
 
 ---
 
+## AgentCore Gateway (optional)
+
+Connect your agent to tools hosted on an Amazon Bedrock AgentCore Gateway — a managed MCP endpoint that proxies external APIs, databases, and services with built-in auth and observability.
+
+```bash
+dotnet add package Strands.AgentCore
+```
+
+```csharp
+// Direct usage — connect and list tools
+await using var gateway = await AgentCoreGatewayToolProvider.CreateAsync(
+    gatewayUrl: new Uri("https://...gateway-url.../mcp"),
+    auth: new AgentCoreGatewayAuth.Iam(region: "us-east-1"));
+
+var tools = await gateway.ListToolsAsync();
+var agent = new Agent(model, tools: tools);
+```
+
+Three auth modes match your gateway's inbound authorization setting:
+
+```csharp
+// IAM SigV4 — credentials resolved from the standard AWS chain
+new AgentCoreGatewayAuth.Iam(region: "us-east-1")
+
+// JWT Bearer — Cognito, Entra ID, Okta, Google, GitHub, etc.
+new AgentCoreGatewayAuth.Bearer(accessToken: token)
+
+// No auth — network-isolated (VPC / security groups)
+new AgentCoreGatewayAuth.None()
+```
+
+With DI, `AddAgentCoreGatewayTools()` registers all gateway tools directly into the container — `AddStrandsAgent()` picks them up automatically:
+
+```csharp
+builder.Services
+    .AddBedrockModel("us-east-1")
+    .AddAgentCoreGatewayTools(gatewayUrl, auth: new AgentCoreGatewayAuth.Iam("us-east-1"))
+    .AddStrandsAgent();
+```
+
+---
+
 ## AgentCore Runtime deployment (optional)
 
 Deploy any Strands.NET agent to Amazon Bedrock AgentCore Runtime with one line. Your agent code is unchanged.
@@ -248,6 +291,7 @@ app.Run();
 | [ChatUI](samples/ChatUI/) | Browser chat UI with SSE streaming and tool badges |
 | [BlazorResearch](samples/BlazorResearch/) | Blazor Server portal with live parallel agent cards |
 | [AgentCoreSample](samples/AgentCoreSample/) | Deploy any agent to AgentCore Runtime — `MapAgentCoreEndpoints()` in one line |
+| [AgentCoreGatewaySample](samples/AgentCoreGatewaySample/) | Travel booking assistant using gateway-hosted flight and hotel search tools via `AddAgentCoreGatewayTools()` |
 
 ---
 
