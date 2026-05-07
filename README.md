@@ -15,6 +15,7 @@
 dotnet add package Strands.Core
 dotnet add package Strands.Models.Bedrock
 dotnet add package Strands.Tools
+dotnet add package Strands.SourceGenerator
 ```
 
 Decorate a method with `[Tool]` — the Roslyn source generator emits a compile-time `ITool` wrapper at build time:
@@ -43,9 +44,7 @@ var result = await agent.InvokeAsync("What's the weather in London?");
 Console.WriteLine(result.Message);
 ```
 
-> The `MyTools_GetWeather_Tool` class is generated at compile time by `Strands.SourceGenerator`. Add it to your project with `dotnet add package Strands.SourceGenerator`.
-
-Prerequisites: .NET 10 SDK, AWS credentials with Bedrock access enabled.
+> Prerequisites: .NET 10 SDK, AWS credentials with Bedrock access enabled.
 
 ---
 
