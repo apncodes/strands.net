@@ -9,6 +9,7 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/apncodes/strands.net</PackageProjectUrl>
     <NoWarn>NU5128</NoWarn>
+    <PackageReadmeFile></PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StrandsAgents.Runtime" Version="0.1.4" />
