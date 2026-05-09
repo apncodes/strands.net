@@ -9,13 +9,13 @@
 1. [What is Strands Agents .NET?](#1-what-is-strands-agents-net)
 2. [Package Structure](#2-package-structure)
 3. [Core Concepts](#3-core-concepts)
-4. [Strands.Core — The Engine](#4-strandscore--the-engine)
-5. [Strands.SourceGenerator — Compile-Time Tool Schemas](#5-strandssourcegenerator--compile-time-tool-schemas)
-6. [Strands.Models.Bedrock — AWS Bedrock Provider](#6-strandsmodelsbedrock--aws-bedrock-provider)
-7. [Strands.Tools — Built-In Tools](#7-strandstools--built-in-tools)
-8. [Strands.MultiAgent — Orchestration Patterns](#8-strandsmultiagent--orchestration-patterns)
-9. [Strands.Extensions.DI — Dependency Injection](#9-strandsextensionsdi--dependency-injection)
-10. [Strands.AgentCore — AgentCore Runtime Hosting](#10-strandsagentcore--agentcore-runtime-hosting)
+4. [StrandsAgents.Core — The Engine](#4-strandscore--the-engine)
+5. [StrandsAgents.SourceGenerator — Compile-Time Tool Schemas](#5-strandssourcegenerator--compile-time-tool-schemas)
+6. [StrandsAgents.Models.Bedrock — AWS Bedrock Provider](#6-strandsmodelsbedrock--aws-bedrock-provider)
+7. [StrandsAgents.Tools — Built-In Tools](#7-strandstools--built-in-tools)
+8. [StrandsAgents.MultiAgent — Orchestration Patterns](#8-strandsmultiagent--orchestration-patterns)
+9. [StrandsAgents.Extensions.DI — Dependency Injection](#9-strandsextensionsdi--dependency-injection)
+10. [StrandsAgents.Runtime — AgentCore Runtime Hosting](#10-strandsagentcore--agentcore-runtime-hosting)
 11. [Cross-Cutting Implementation Patterns](#11-cross-cutting-implementation-patterns)
 12. [Test Coverage](#12-test-coverage)
 13. [Samples](#13-samples)
@@ -57,18 +57,18 @@ var result = await agent.InvokeAsync("What is 42 multiplied by 1764?");
 
 ```
 src/
-  Strands.Core                  Core engine: event loop, agent, hooks, conversation, sessions
-  Strands.SourceGenerator       Roslyn IIncrementalGenerator for [Tool] attribute
-  Strands.Models.Bedrock        AWS Bedrock via ConverseAsync / ConverseStreamAsync
-  Strands.Tools                 Built-in tools: Calculator, FileRead, FileWrite, HttpRequest
-  Strands.MultiAgent            Orchestration: Pipeline, Parallel, Graph, A2A
-  Strands.Extensions.DI         IServiceCollection extension methods
-  Strands.AgentCore             AgentCore Runtime hosting + managed service tools
+  StrandsAgents.Core                  Core engine: event loop, agent, hooks, conversation, sessions
+  StrandsAgents.SourceGenerator       Roslyn IIncrementalGenerator for [Tool] attribute
+  StrandsAgents.Models.Bedrock        AWS Bedrock via ConverseAsync / ConverseStreamAsync
+  StrandsAgents.Tools                 Built-in tools: Calculator, FileRead, FileWrite, HttpRequest
+  StrandsAgents.MultiAgent            Orchestration: Pipeline, Parallel, Graph, A2A
+  StrandsAgents.Extensions.DI         IServiceCollection extension methods
+  StrandsAgents.Runtime             AgentCore Runtime hosting + managed service tools
 
 tests/
-  Strands.Core.Tests            Unit tests — mocked IModel, no live endpoints
-  Strands.Integration.Tests     Live Bedrock tests (gated by STRANDS_INTEGRATION_TESTS=true)
-  Strands.AgentCore.Tests       Unit tests for hosting, tools, session, DI
+  StrandsAgents.Core.Tests            Unit tests — mocked IModel, no live endpoints
+  StrandsAgents.Integration.Tests     Live Bedrock tests (gated by STRANDS_INTEGRATION_TESTS=true)
+  StrandsAgents.Runtime.Tests       Unit tests for hosting, tools, session, DI
 
 samples/
   CliAgent                      Multi-turn streaming REPL
@@ -88,13 +88,13 @@ samples/
 **Dependency graph** (arrows = "depends on"):
 
 ```
-Strands.AgentCore ──────────────────────────────────┐
-Strands.Extensions.DI ─────────────────────────┐   │
-Strands.MultiAgent ────────────────────────┐   │   │
-Strands.Tools ─────────────────────────┐   │   │   │
-Strands.Models.Bedrock ────────────┐   │   │   │   │
-                                   └───┴───┴───┴───┴──▶ Strands.Core
-                                                     ▶ Strands.SourceGenerator (as Analyzer)
+StrandsAgents.Runtime ──────────────────────────────────┐
+StrandsAgents.Extensions.DI ─────────────────────────┐   │
+StrandsAgents.MultiAgent ────────────────────────┐   │   │
+StrandsAgents.Tools ─────────────────────────┐   │   │   │
+StrandsAgents.Models.Bedrock ────────────┐   │   │   │   │
+                                   └───┴───┴───┴───┴──▶ StrandsAgents.Core
+                                                     ▶ StrandsAgents.SourceGenerator (as Analyzer)
 ```
 
 ---
@@ -137,7 +137,7 @@ The LLM decides *which* tools to call and *when* to stop. The SDK never hard-cod
 
 ---
 
-## 4. Strands.Core — The Engine
+## 4. StrandsAgents.Core — The Engine
 
 ### Public interfaces
 
@@ -396,7 +396,7 @@ Zero-config — wires automatically when an OpenTelemetry listener is present.
 
 ---
 
-## 5. Strands.SourceGenerator — Compile-Time Tool Schemas
+## 5. StrandsAgents.SourceGenerator — Compile-Time Tool Schemas
 
 `ToolGenerator` is a Roslyn `IIncrementalGenerator`. It runs at compile time, not at runtime.
 
@@ -467,7 +467,7 @@ If the original method signature includes `CancellationToken ct`:
 
 ---
 
-## 6. Strands.Models.Bedrock — AWS Bedrock Provider
+## 6. StrandsAgents.Models.Bedrock — AWS Bedrock Provider
 
 ```csharp
 public sealed class BedrockModel : IModel, IDisposable
@@ -497,7 +497,7 @@ public sealed class BedrockModel : IModel, IDisposable
 
 ---
 
-## 7. Strands.Tools — Built-In Tools
+## 7. StrandsAgents.Tools — Built-In Tools
 
 ### CalculatorTool
 
@@ -553,7 +553,7 @@ Accepts GET or POST. Supports optional headers and body. Returns `{ statusCode, 
 
 ---
 
-## 8. Strands.MultiAgent — Orchestration Patterns
+## 8. StrandsAgents.MultiAgent — Orchestration Patterns
 
 ### PipelineOrchestrator — sequential
 
@@ -634,7 +634,7 @@ var result = await remote.InvokeAsync("Do some research");
 
 ---
 
-## 9. Strands.Extensions.DI — Dependency Injection
+## 9. StrandsAgents.Extensions.DI — Dependency Injection
 
 All methods extend `IServiceCollection` and return `IServiceCollection` for fluent chaining.
 
@@ -675,7 +675,7 @@ services.AddSingleton<ISessionManager>(_ => new FileSessionManager("/sessions"))
 
 ---
 
-## 10. Strands.AgentCore — AgentCore Runtime Hosting
+## 10. StrandsAgents.Runtime — AgentCore Runtime Hosting
 
 ### What AgentCore is
 
@@ -689,7 +689,7 @@ Your Strands.NET agent ──unchanged──▶
                                                                AgentCore Runtime routes traffic here
 ```
 
-Nothing in `Strands.Core`, `Strands.Models.Bedrock`, or any other package changes. `Strands.AgentCore` adds a hosting wrapper and optional managed service tools.
+Nothing in `StrandsAgents.Core`, `StrandsAgents.Models.Bedrock`, or any other package changes. `StrandsAgents.Runtime` adds a hosting wrapper and optional managed service tools.
 
 ### Hosting wrapper
 
@@ -774,7 +774,7 @@ app.Run();
 
 ### Dockerfile.agentcore template
 
-AgentCore Runtime requires ARM64 containers. A template is provided at `src/Strands.AgentCore/Dockerfile.agentcore`:
+AgentCore Runtime requires ARM64 containers. A template is provided at `src/StrandsAgents.Runtime/Dockerfile.agentcore`:
 
 ```dockerfile
 FROM --platform=linux/arm64 mcr.microsoft.com/dotnet/aspnet:10.0
@@ -844,7 +844,7 @@ All public types and members carry `<summary>`, `<param>`, and `<returns>` XML d
 
 All tests use xUnit. Unit tests mock `IModel` with Moq. No unit test calls a live endpoint.
 
-### Strands.Core.Tests (126 tests)
+### StrandsAgents.Core.Tests (126 tests)
 
 | Test class | What it covers |
 |---|---|
@@ -865,7 +865,7 @@ All tests use xUnit. Unit tests mock `IModel` with Moq. No unit test calls a liv
 | `HttpRequestToolTests` | GET request, POST with body, custom headers, error status code |
 | `McpToolWrapperTests` | MCP tool provider wraps server tools as ITool |
 
-### Strands.AgentCore.Tests (31 tests)
+### StrandsAgents.Runtime.Tests (31 tests)
 
 | Test class | What it covers |
 |---|---|
@@ -874,7 +874,7 @@ All tests use xUnit. Unit tests mock `IModel` with Moq. No unit test calls a liv
 | `SessionTests` | 404 → returns null; 200 → reconstructs AgentSession with correct messages; SaveAsync sends PUT with sessionId in path; DisposeAsync disposes owned client |
 | `DiTests` | `AddAgentCoreSessionManager` registers `AgentCoreSessionManager` as `ISessionManager`; each `AddAgentCore*` registers correct `ITool` type; all three tools registered together |
 
-### Strands.Integration.Tests (3 tests)
+### StrandsAgents.Integration.Tests (3 tests)
 
 Gated by `STRANDS_INTEGRATION_TESTS=true`. Run with:
 

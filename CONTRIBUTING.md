@@ -21,7 +21,7 @@ Thank you for helping bring Strands to the .NET community.
 
 ## What we need most
 
-- **Model providers** — Anthropic direct API, Google Gemini, Ollama, Azure OpenAI
+- **Model providers** — Ollama, Azure OpenAI, Cohere, Mistral
 - **Built-in tools** — database query, code execution, vector search, email/calendar
 - **Real-world samples** — RAG pipelines, customer service bots, coding assistants
 - **Documentation** — guides, API reference, tutorials
