@@ -10,7 +10,7 @@ namespace StrandsAgents.Core;
 /// </summary>
 internal static class StrandsTelemetry
 {
-    internal const string SourceName = "Strands.Agent";
+    internal const string SourceName = "StrandsAgents.Agent";
 
     /// <summary>ActivitySource for distributed tracing. Zero overhead when no listener is attached.</summary>
     internal static readonly ActivitySource ActivitySource = new(SourceName, "0.1.0");
@@ -19,17 +19,17 @@ internal static class StrandsTelemetry
 
     /// <summary>Number of input tokens consumed across all model calls.</summary>
     internal static readonly Counter<long> TokensInput =
-        _meter.CreateCounter<long>("strands.tokens.input", "tokens", "Input tokens consumed");
+        _meter.CreateCounter<long>("strandsagents.tokens.input", "tokens", "Input tokens consumed");
 
     /// <summary>Number of output tokens produced across all model calls.</summary>
     internal static readonly Counter<long> TokensOutput =
-        _meter.CreateCounter<long>("strands.tokens.output", "tokens", "Output tokens produced");
+        _meter.CreateCounter<long>("strandsagents.tokens.output", "tokens", "Output tokens produced");
 
     /// <summary>Number of tool calls executed.</summary>
     internal static readonly Counter<long> ToolCalls =
-        _meter.CreateCounter<long>("strands.tool.calls", "calls", "Number of tool calls executed");
+        _meter.CreateCounter<long>("strandsagents.tool.calls", "calls", "Number of tool calls executed");
 
     /// <summary>Agent invocation latency in milliseconds.</summary>
     internal static readonly Histogram<double> AgentLatency =
-        _meter.CreateHistogram<double>("strands.agent.latency", "ms", "Agent invocation latency");
+        _meter.CreateHistogram<double>("strandsagents.agent.latency", "ms", "Agent invocation latency");
 }

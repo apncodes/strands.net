@@ -136,7 +136,7 @@ var agent = app.Services.GetRequiredService<IAgent>();
 - **Structured output** — `GetStructuredOutputAsync<T>()` extracts typed records with automatic JSON retry
 - **Session management** — `InMemorySessionManager` or `FileSessionManager`; bring your own via `ISessionManager`
 - **Context window trimming** — `SlidingWindowStrategy` or `SummarizingConversationManager` for long-running agents
-- **OpenTelemetry** — `ActivitySource` named `"Strands.Agent"` emits traces and metrics with zero config
+- **OpenTelemetry** — `ActivitySource` named `"StrandsAgents.Agent"` emits traces and metrics with zero config
 - **DI integration** — `AddBedrockModel()`, `AddAnthropicModel()`, `AddOpenAICompatibleModel()`, `AddStrandsAgent()` for native ASP.NET Core / Worker Service wiring
 - **Multi-agent graph** — `GraphBuilder` with conditional routing; `PipelineOrchestrator`; `ParallelOrchestrator`
 - **Agent as tool** — wrap any `IAgent` as an `ITool` with `agent.AsTool()` for hierarchical orchestration
