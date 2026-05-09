@@ -11,10 +11,10 @@
     <Description>Strands Agents .NET — a model-driven agentic AI framework for C# developers.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <Version>0.1.4</Version>
-    <PackageTags>ai;agents;llm;bedrock;aws;strands;dotnet;csharp;agentic</PackageTags>
-    <PackageProjectUrl>https://github.com/apncodes/strands.net</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/apncodes/strands.net</RepositoryUrl>
+    <Version>0.1.5</Version>
+    <PackageTags>ai;agents;llm;bedrock;aws;strands;strandsagents;dotnet;csharp;agentic;gemini</PackageTags>
+    <PackageProjectUrl>https://github.com/apncodes/StrandsAgents.net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/apncodes/StrandsAgents.net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
