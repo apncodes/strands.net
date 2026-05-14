@@ -43,12 +43,6 @@ Console.WriteLine(result.Message);
 
 > Prerequisites: .NET 10 SDK, AWS credentials with Bedrock access enabled.
 
-> **Backward compatibility:** The old explicit-wrapper form still compiles and runs unchanged.
-> ```csharp
-> tools: [new MyTools_GetWeather_Tool(new MyTools())]
-> ```
-> Non-`partial` classes emit a `STRAND001` warning and continue to work via the wrapper form.
-
 ---
 
 ## Model providers
@@ -120,7 +114,7 @@ var agent = app.Services.GetRequiredService<IAgent>();
 
 ---
 
-## Why Strands.NET
+## Why StrandsAgents.NET
 
 .NET is the dominant runtime in enterprise — AWS Lambda, Windows services, ASP.NET APIs, and beyond. Strands Agents .NET brings the model-driven agentic approach to every .NET developer: the same event loop, tool system, and multi-agent patterns, built ground-up in idiomatic C# 13. No language bridges, no sidecars. The API uses the patterns .NET developers already know: generics instead of string tags, `IAsyncEnumerable` instead of async generators, `Task.WhenAll` for parallel execution.
 
@@ -306,6 +300,8 @@ builder.Services
 | [CliAgent](samples/CliAgent/) | Multi-turn streaming REPL — the minimal working agent |
 | [AspNetAgent](samples/AspNetAgent/) | `/chat` endpoint with session continuity and SSE streaming |
 | [DiAgent](samples/DiAgent/) | Full DI wiring with file tools and session management |
+| [FileAgent](samples/FileAgent/) | `FileReadTool` / `FileWriteTool` + `SlidingWindowStrategy` context trimming |
+| [AutoTrimAssistant](samples/AutoTrimAssistant/) | Zero-boilerplate auto-trim via `IAutoTrimConversationManager`; file session with TTL |
 | [MultiAgentPipeline](samples/MultiAgentPipeline/) | Sequential pipeline + parallel fan-out with timestamps |
 | [OrchestratedResearch](samples/OrchestratedResearch/) | All three orchestration patterns side by side |
 | [SupportTriage](samples/SupportTriage/) | Graph routing, hooks, and structured output extraction |
@@ -315,8 +311,12 @@ builder.Services
 | [DistributedAgents](samples/DistributedAgents/) | A2A cross-process agent communication |
 | [ChatUI](samples/ChatUI/) | Browser chat UI with SSE streaming and tool badges |
 | [BlazorResearch](samples/BlazorResearch/) | Blazor Server portal with live parallel agent cards |
+| [ResponsibleAiSample](samples/ResponsibleAiSample/) | Bedrock Guardrails, `[ToolParameterValidation]`, audit logging, least-privilege tool design |
+| [CodeInterpreterSample](samples/CodeInterpreterSample/) | `AgentCoreCodeInterpreterTool` — stateful Python / JS / TS sandbox via AgentCore |
+| [BrowserSample](samples/BrowserSample/) | `AgentCoreBrowserTool` — managed headless Chrome session; CDP endpoint for Playwright / Nova Act |
+| [SemanticMemorySample](samples/SemanticMemorySample/) | `SemanticMemoryTool` — vector / semantic search over AgentCore Memory |
 | [AgentCoreSample](samples/AgentCoreSample/) | Deploy any agent to AgentCore Runtime — `MapAgentCoreEndpoints()` in one line |
-| [AgentCoreGatewaySample](samples/AgentCoreGatewaySample/) | Travel booking assistant using gateway-hosted flight and hotel search tools via `AddAgentCoreGatewayTools()` |
+| [AgentCoreGatewaySample](samples/AgentCoreGatewaySample/) | Travel booking assistant using gateway-hosted tools via `AddAgentCoreGatewayTools()` |
 
 ---
 
