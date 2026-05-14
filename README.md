@@ -18,18 +18,28 @@ dotnet add package StrandsAgents.Tools
 dotnet add package StrandsAgents.SourceGenerator
 ```
 
-Decorate a method with `[Tool]` on a `partial class` — the Roslyn source generator emits a compile-time `ITool` wrapper and an `IToolProvider` implementation automatically:
+Decorate a method with `[Tool]` on a `partial class` — the Roslyn source generator emits a compile-time `ITool` wrapper and an `IToolProvider` implementation automatically.
 
+The `partial class` must be in its own file with an explicit namespace. Create two files:
+
+**MyTools.cs**
 ```csharp
 using StrandsAgents.Core;
-using StrandsAgents.Models.Bedrock;
 
-// Declare the class partial — the source generator implements IToolProvider automatically
+namespace MyApp;
+
 public partial class MyTools
 {
     [Tool("Returns the current weather for a city")]
     public string GetWeather(string city) => $"Sunny, 22°C in {city}";
 }
+```
+
+**Program.cs**
+```csharp
+using StrandsAgents.Core;
+using StrandsAgents.Models.Bedrock;
+using MyApp;
 
 var agent = new Agent(
     model: new BedrockModel("us-east-1"),
@@ -41,7 +51,15 @@ var result = await agent.InvokeAsync("What's the weather in London?");
 Console.WriteLine(result.Message);
 ```
 
+> The namespace on the `partial class` is required. The source generator emits its `IToolProvider` implementation in the same namespace, and C# merges the two partial declarations into one type. Without a matching namespace they are treated as separate types and the build fails.
+
 > Prerequisites: .NET 10 SDK, AWS credentials with Bedrock access enabled.
+
+> **Backward compatibility:** The old explicit-wrapper form still compiles and runs unchanged.
+> ```csharp
+> tools: [new MyTools_GetWeather_Tool(new MyTools())]
+> ```
+> Non-`partial` classes emit a `STRAND001` warning and continue to work via the wrapper form.
 
 ---
 
