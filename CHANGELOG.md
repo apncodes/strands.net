@@ -6,6 +6,10 @@ All notable changes to Strands Agents .NET are documented here.
 
 ## [Unreleased]
 
+---
+
+## [0.1.8] — 2026-05-14
+
 ### Added
 
 - **`IToolProvider` pattern** — classes with `[Tool]`-decorated methods can now be passed directly to the `Agent` constructor without referencing source-generated wrapper type names. Declare the class `partial` and pass it via `toolProviders:`:
