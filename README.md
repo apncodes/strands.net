@@ -82,12 +82,6 @@ Console.WriteLine(result.Message);
 
 > Prerequisites: .NET 10 SDK, AWS credentials with Bedrock access enabled.
 
-> **Backward compatibility:** The old explicit-wrapper form still compiles and runs unchanged.
-> ```csharp
-> tools: [new MyTools_GetWeather_Tool(new MyTools())]
-> ```
-> Non-`partial` classes emit a `STRAND001` warning and continue to work via the wrapper form.
-
 ---
 
 ## Model providers
