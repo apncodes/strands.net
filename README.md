@@ -34,6 +34,7 @@ dotnet add package StrandsAgents.SourceGenerator
 ```csharp
 using StrandsAgents.Core;
 using StrandsAgents.Models.Bedrock;
+using MyApp;
 
 var agent = new Agent(
     model: new BedrockModel("us-east-1"),
