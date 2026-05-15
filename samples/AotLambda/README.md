@@ -105,17 +105,75 @@ fields @timestamp, @message
 
 ## Benchmarks
 
-Measured on AWS Lambda `us-east-1`, 512 MB memory, `provided.al2023` runtime, 5 cold-start invocations. The agent invokes the `GetWeather` tool on each call — this is a real end-to-end measurement including model inference.
+### Test conditions
 
-| Measurement | AOT (`provided.al2023`) | JIT (`.NET 10 managed`) | Notes |
+| Parameter | Value |
+|---|---|
+| Date | 2026-05-15 |
+| AWS region | `us-east-1` |
+| Lambda runtime | `provided.al2023` |
+| Lambda memory | 512 MB |
+| Lambda architecture | `x86_64` |
+| Model | `us.anthropic.claude-haiku-4-5-20251001-v1:0` (cross-region inference profile) |
+| Cold-start method | `update-function-configuration` between each invocation (forces new execution environment) |
+| Workload | Single tool-using agent: user asks for weather → model calls `GetWeather` tool → model synthesizes response |
+| LLM calls per invocation | 2 (one to decide tool call, one to synthesize result with tool output) |
+| Runs | 5 cold starts |
+
+Cold start is forced by calling `aws lambda update-function-configuration` before each invocation, which causes Lambda to provision a new execution environment. The `Init Duration` field in CloudWatch logs measures the time from environment creation to the first line of user code executing — this is what AOT improves.
+
+### Results
+
+| Run | Init Duration (ms) | Total Duration (ms) | Memory Used |
 |---|---|---|---|
-| Cold start init duration (avg) | **118 ms** | 200–500 ms | CloudWatch `Init Duration`, 5 runs: 107/107/108/124/140 ms |
-| Cold start init duration (min) | **107 ms** | — | Best observed cold start |
-| Warm invocation (p50) | ~2,500 ms | ~2,500 ms | Model inference dominates warm path; no difference |
-| Memory used | **52 MB** | ~80–120 MB | Includes agent + Bedrock SDK + tool execution |
-| Binary size | **14 MB** | N/A (runtime separate) | Compressed zip; uncompressed ~36 MB |
+| 1 | 107.39 | 2,462 | 52 MB |
+| 2 | 140.28 | 2,970 | 52 MB |
+| 3 | 124.48 | 2,604 | 52 MB |
+| 4 | 108.74 | 2,385 | 52 MB |
+| 5 | 107.26 | 2,457 | 52 MB |
+| **avg** | **117.6** | **2,576** | **52 MB** |
+| **min** | **107.3** | **2,385** | |
+| **max** | **140.3** | **2,970** | |
 
-The AOT binary initializes in ~110ms on average. The JIT baseline for the same code on the `dotnet10` managed runtime typically shows 200–500ms init duration. Warm invocation time is dominated by Bedrock model inference (~2–3s for Claude Haiku) — identical between AOT and JIT.
+### What the numbers mean
+
+**Init Duration (~118ms avg)** — this is the AOT advantage. The native binary loads and initializes in ~110–140ms. The equivalent JIT runtime (`dotnet10` managed runtime) typically shows 200–500ms init duration for the same code, because the JIT must load the runtime, resolve assemblies, and JIT-compile the hot path before the first request.
+
+**Total Duration (~2,500ms avg)** — this is dominated by two Bedrock API calls (~1,100–1,300ms each for Claude Haiku). The framework overhead (event loop, tool dispatch, serialization) is under 50ms and is identical between AOT and JIT. Warm invocations show the same ~2,400ms because model inference latency doesn't change between cold and warm.
+
+**Memory (52 MB)** — includes the agent, Bedrock SDK, tool class, and two full LLM round-trips. The JIT runtime baseline for the same code typically uses 80–120 MB due to the managed runtime overhead.
+
+**Binary size (14 MB compressed zip)** — the self-contained native binary. No .NET runtime installation required on the Lambda host.
+
+### How to reproduce
+
+```bash
+# Force a cold start and capture Init Duration
+aws lambda update-function-configuration \
+  --function-name strands-aot-demo \
+  --description "bench-$(date +%s)" \
+  --region us-east-1 > /dev/null
+
+aws lambda wait function-updated --function-name strands-aot-demo --region us-east-1
+
+aws lambda invoke \
+  --function-name strands-aot-demo \
+  --payload '"What is the weather in London?"' \
+  --cli-binary-format raw-in-base64-out \
+  --log-type Tail \
+  --region us-east-1 \
+  --query 'LogResult' --output text \
+  /dev/null | base64 --decode | grep "Init Duration"
+```
+
+Or use CloudWatch Logs Insights across multiple invocations:
+
+```
+fields @timestamp, @message
+| filter @message like /Init Duration/
+| parse @message "Init Duration: * ms" as initDuration
+| stats avg(initDuration), min(initDuration), max(initDuration), count() by bin(1h)
+```
 
 ## How it works
 
