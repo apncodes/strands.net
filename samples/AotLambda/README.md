@@ -124,6 +124,8 @@ Cold start is forced by calling `aws lambda update-function-configuration` befor
 
 ### Results
 
+**Raw measurements (5 cold starts)**
+
 | Run | Init Duration (ms) | Total Duration (ms) | Memory Used |
 |---|---|---|---|
 | 1 | 107.39 | 2,462 | 52 MB |
@@ -131,9 +133,14 @@ Cold start is forced by calling `aws lambda update-function-configuration` befor
 | 3 | 124.48 | 2,604 | 52 MB |
 | 4 | 108.74 | 2,385 | 52 MB |
 | 5 | 107.26 | 2,457 | 52 MB |
-| **avg** | **117.6** | **2,576** | **52 MB** |
-| **min** | **107.3** | **2,385** | |
-| **max** | **140.3** | **2,970** | |
+
+**Summary**
+
+| Metric | Init Duration (ms) | Total Duration (ms) |
+|---|---|---|
+| Average | 117.6 | 2,576 |
+| Min | 107.3 | 2,385 |
+| Max | 140.3 | 2,970 |
 
 ### What the numbers mean
 
