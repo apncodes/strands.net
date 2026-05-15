@@ -3,10 +3,11 @@ using Amazon.Lambda.RuntimeSupport;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using StrandsAgents.Core;
 using StrandsAgents.Models.Bedrock;
+using System.Text.Json.Serialization;
 using AotLambda;
 
 // NativeAOT Lambda bootstrap — no reflection, no JIT warm-up.
-// The handler is a plain async delegate; LambdaBootstrapBuilder wires it to the Lambda runtime.
+// Uses SourceGeneratorLambdaJsonSerializer for AOT-safe JSON deserialization.
 var handler = async (string input, ILambdaContext context) =>
 {
     var agent = new Agent(
@@ -20,10 +21,15 @@ var handler = async (string input, ILambdaContext context) =>
     return result.Message;
 };
 
+// SourceGeneratorLambdaJsonSerializer is AOT-safe — no runtime reflection.
 await LambdaBootstrapBuilder
-    .Create(handler, new DefaultLambdaJsonSerializer())
+    .Create(handler, new SourceGeneratorLambdaJsonSerializer<LambdaJsonContext>())
     .Build()
     .RunAsync();
+
+// JSON serialization context — registers string for AOT-safe serialization.
+[JsonSerializable(typeof(string))]
+public partial class LambdaJsonContext : JsonSerializerContext { }
 
 // Tool class must be in a namespace when mixed with top-level statements.
 // The source generator emits IToolProvider in the same namespace — both partials merge at compile time.
