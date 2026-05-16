@@ -18,7 +18,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build
-        run: dotnet build Strands.sln --configuration Release
+        run: dotnet build StrandsAgents.sln --configuration Release
 
       - name: Test
-        run: dotnet test Strands.sln --configuration Release --verbosity normal
+        run: dotnet test StrandsAgents.sln --configuration Release --verbosity normal
