@@ -1,3 +1,42 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// PATTERN: Decomposed Sequential Pipeline with Platform-Managed Durability
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// This is Stage 2 of 3 — the most expensive stage, and the one that most
+// benefits from platform-managed durability.
+//
+// WHY THIS STAGE IS THE DURABILITY BOTTLENECK:
+// ExecuteAgent makes one LLM call per focus area (3 areas = 3 Bedrock calls),
+// each taking 5-15 seconds. Total: 15-45 seconds of LLM work. In a real
+// implementation with external API calls (search, databases, knowledge bases),
+// this could easily be 5-10 minutes.
+//
+// WITHOUT DURABILITY (single Lambda):
+// If this stage fails at focus area 3 after completing areas 1 and 2,
+// the entire pipeline restarts from Stage 1. All prior LLM work is lost.
+// Cost: 2 wasted Bedrock calls + Stage 1's call = 3 calls wasted per failure.
+//
+// WITH STEP FUNCTIONS DURABILITY:
+// Stage 1's output (the ResearchPlan) is stored in the execution state.
+// If this Lambda fails, Step Functions retries THIS stage only.
+// Stage 1 is never re-run. The retry starts with the same ResearchPlan input.
+// Cost: only the failed focus areas are re-researched.
+//
+// FAILURE SIMULATION:
+// Set SIMULATE_FAILURE=true on this Lambda to trigger a deliberate failure
+// on the first invocation. Step Functions will retry automatically.
+// This demonstrates the retry behavior without needing a real failure.
+//
+// AGENT ROLE — ExecuteAgent (Stage 2):
+// Receives the ResearchPlan from Stage 1. For each focus area, calls the
+// Research tool to gather findings. Returns all findings as a structured
+// ResearchFindings record for Stage 3 (SummarizeAgent) to synthesize.
+//
+// AGENT KNOWLEDGE:
+// This agent has NO knowledge of Stage 1 or Stage 3. It does not call them.
+// It receives a ResearchPlan, researches it, and returns ResearchFindings.
+// ═══════════════════════════════════════════════════════════════════════════════
+
 using Amazon.Lambda.Core;
 using Amazon.Lambda.RuntimeSupport;
 using Amazon.Lambda.Serialization.SystemTextJson;
@@ -6,45 +45,75 @@ using StrandsAgents.Models.Bedrock;
 using System.Text.Json.Serialization;
 using ExecuteAgent;
 
-// ExecuteAgent — Step 2 of the DurableWorkflow state machine.
-//
-// Receives the ResearchPlan produced by PlanAgent, uses an agent with a
-// research tool to gather findings for each focus area, and returns a
-// ResearchFindings record. Step Functions passes this to SummarizeAgent.
-//
-// This step has a Retry + Catch block in the state machine definition —
-// if this Lambda fails, Step Functions retries up to 2 times with backoff
-// before routing to a Failure state. The agent code itself is unchanged;
-// durability is handled entirely by the platform.
-
 var handler = async (ResearchPlan input, ILambdaContext context) =>
 {
-    context.Logger.LogInformation($"ExecuteAgent: researching {input.FocusAreas.Length} focus areas for '{input.Topic}'");
+    context.Logger.LogInformation(
+        $"[Stage 2/3 — ExecuteAgent] Researching {input.FocusAreas.Length} focus areas for '{input.Topic}'");
+
+    // ── Failure simulation ────────────────────────────────────────────────────
+    // Set SIMULATE_FAILURE=true on this Lambda to demonstrate Step Functions retry.
+    // On first invocation: throws an exception → Step Functions retries.
+    // On retry: SIMULATE_FAILURE is still true but the retry counter is tracked
+    // externally — in a real scenario you'd use a flag in S3 or DynamoDB.
+    // For this demo, set SIMULATE_FAILURE=false after observing the first failure.
+    if (Environment.GetEnvironmentVariable("SIMULATE_FAILURE") == "true")
+    {
+        context.Logger.LogWarning(
+            "[Stage 2/3 — ExecuteAgent] SIMULATE_FAILURE=true — throwing to demonstrate Step Functions retry. " +
+            "Set SIMULATE_FAILURE=false to allow the retry to succeed.");
+        throw new InvalidOperationException(
+            "Simulated failure in ExecuteAgent. Step Functions will retry this stage. " +
+            "Stage 1 (PlanAgent) output is preserved — it will NOT be re-run.");
+    }
 
     var agent = new Agent(
         model: new BedrockModel(
             region: Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1",
             modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
         systemPrompt: """
-            You are a research execution assistant. Given a research plan, gather key findings
-            for each focus area. Be concise — 2-3 sentences per area. Use the research tool
-            to look up information for each focus area.
+            You are a research execution specialist. Given a specific research question,
+            provide a focused, factual answer in 3-4 sentences. Be concrete and specific.
+            Use the Research tool to look up information before answering.
             """,
         toolProviders: [new ResearchTools()]);
 
-    var focusAreasList = string.Join(", ", input.FocusAreas);
-    var result = await agent.InvokeAsync(
-        $"Research these focus areas for '{input.Topic}': {focusAreasList}. " +
-        $"Objective: {input.Objective}");
+    // Research each focus area independently.
+    // Each call is a separate LLM invocation — this is where the time accumulates.
+    // In a real implementation, these could call external APIs, search engines,
+    // vector databases, or knowledge bases.
+    var findings = new List<FocusAreaFinding>();
 
-    context.Logger.LogInformation($"ExecuteAgent: research complete, {result.Message.Length} chars");
+    foreach (var area in input.FocusAreas)
+    {
+        context.Logger.LogInformation(
+            $"[Stage 2/3 — ExecuteAgent] Researching: '{area.Name}' — {area.Question}");
 
+        var result = await agent.InvokeAsync(
+            $"Research question: {area.Question}\n" +
+            $"Context: This is part of a broader study on '{input.Topic}'. {area.Rationale}");
+
+        findings.Add(new FocusAreaFinding
+        {
+            Name = area.Name,
+            Question = area.Question,
+            Answer = result.Message
+        });
+
+        context.Logger.LogInformation(
+            $"[Stage 2/3 — ExecuteAgent] Completed: '{area.Name}' ({result.Message.Length} chars)");
+    }
+
+    context.Logger.LogInformation(
+        $"[Stage 2/3 — ExecuteAgent] All {findings.Count} focus areas researched. " +
+        $"Passing to Stage 3 (SummarizeAgent) via Step Functions.");
+
+    // This return value becomes the input to SummarizeAgent.
+    // Step Functions stores it in the execution state.
     return new ResearchFindings
     {
         Topic = input.Topic,
         Objective = input.Objective,
-        FocusAreas = input.FocusAreas,
-        Findings = result.Message
+        Findings = [.. findings]
     };
 };
 
@@ -57,35 +126,53 @@ namespace ExecuteAgent
 {
     public partial class ResearchTools
     {
-        [Tool("Look up research information for a specific topic or focus area")]
-        public string Research(string query) =>
-            // In a real implementation this would call a search API, knowledge base, or RAG pipeline.
-            // For this demo it returns structured placeholder findings that demonstrate the pattern.
-            $"Research findings for '{query}': This area involves key developments in technology, " +
-            $"market dynamics, and emerging trends. Current state shows significant activity with " +
-            $"multiple stakeholders driving innovation. Key considerations include scalability, " +
-            $"cost efficiency, and integration with existing systems.";
+        // In a real implementation, this tool would call a search API, RAG pipeline,
+        // knowledge base, or external data source. For this demo it returns structured
+        // placeholder findings that demonstrate the pattern without external dependencies.
+        [Tool("Look up research information for a specific question or topic")]
+        public string Research(string question) =>
+            $"Research findings for '{question}': Current evidence shows significant activity " +
+            $"in this area with multiple approaches being explored. Key factors include technical " +
+            $"feasibility, adoption barriers, and integration complexity. Recent developments " +
+            $"suggest accelerating progress with practical applications emerging in production environments.";
     }
+
+    // ── Data contracts ────────────────────────────────────────────────────────
+    // Input to Stage 2 (output of Stage 1)
+    public record ResearchPlan
+    {
+        public string Topic { get; init; } = "";
+        public string Objective { get; init; } = "";
+        public FocusArea[] FocusAreas { get; init; } = [];
+    }
+
+    public record FocusArea
+    {
+        public string Name { get; init; } = "";
+        public string Question { get; init; } = "";
+        public string Rationale { get; init; } = "";
+    }
+
+    // Output of Stage 2 / Input to Stage 3
+    public record ResearchFindings
+    {
+        public string Topic { get; init; } = "";
+        public string Objective { get; init; } = "";
+        public FocusAreaFinding[] Findings { get; init; } = [];
+    }
+
+    public record FocusAreaFinding
+    {
+        public string Name { get; init; } = "";
+        public string Question { get; init; } = "";
+        public string Answer { get; init; } = "";
+    }
+
+    [JsonSerializable(typeof(ResearchPlan))]
+    [JsonSerializable(typeof(FocusArea))]
+    [JsonSerializable(typeof(FocusArea[]))]
+    [JsonSerializable(typeof(ResearchFindings))]
+    [JsonSerializable(typeof(FocusAreaFinding))]
+    [JsonSerializable(typeof(FocusAreaFinding[]))]
+    public partial class WorkflowJsonContext : JsonSerializerContext { }
 }
-
-// ── Shared data contracts ─────────────────────────────────────────────────────
-
-public record ResearchPlan
-{
-    public string Topic { get; init; } = "";
-    public string[] FocusAreas { get; init; } = [];
-    public string Objective { get; init; } = "";
-}
-
-public record ResearchFindings
-{
-    public string Topic { get; init; } = "";
-    public string Objective { get; init; } = "";
-    public string[] FocusAreas { get; init; } = [];
-    public string Findings { get; init; } = "";
-}
-
-[JsonSerializable(typeof(ResearchPlan))]
-[JsonSerializable(typeof(ResearchFindings))]
-[JsonSerializable(typeof(string))]
-public partial class WorkflowJsonContext : JsonSerializerContext { }

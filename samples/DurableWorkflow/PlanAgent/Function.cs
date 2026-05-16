@@ -1,3 +1,32 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// PATTERN: Decomposed Sequential Pipeline with Platform-Managed Durability
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// This is Stage 1 of 3 in a durable research pipeline.
+//
+// WHY DECOMPOSE?
+// A single Lambda has a 15-minute hard timeout. A research pipeline that calls
+// an LLM once per focus area (5 areas × 2 LLM calls each = 10 Bedrock calls)
+// can easily take 10-20 minutes. Even within the timeout, if the pipeline fails
+// at minute 12, you've lost all prior work and must restart from scratch.
+//
+// THE PATTERN:
+// Each pipeline stage is a separate, stateless Lambda. Step Functions is the
+// checkpoint manager — it stores each stage's output and passes it as input to
+// the next stage. If Stage 2 fails after 8 minutes of work, Step Functions
+// retries Stage 2 only. Stage 1's output is preserved in the execution state.
+//
+// AGENT ROLE — PlanAgent (Stage 1):
+// Receives the user's topic. Uses an LLM to decompose it into a structured
+// research plan: 3-5 focus areas with specific research questions for each.
+// Returns a ResearchPlan that Stage 2 (ExecuteAgent) will work through.
+//
+// AGENT KNOWLEDGE:
+// This agent has NO knowledge of Stage 2 or Stage 3. It does not call them.
+// It simply receives input, does its job, and returns output.
+// Step Functions decides what runs next.
+// ═══════════════════════════════════════════════════════════════════════════════
+
 using Amazon.Lambda.Core;
 using Amazon.Lambda.RuntimeSupport;
 using Amazon.Lambda.Serialization.SystemTextJson;
@@ -7,36 +36,58 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using PlanAgent;
 
-// PlanAgent — Step 1 of the DurableWorkflow state machine.
-//
-// Receives the user's topic from Step Functions input, uses an agent to
-// produce a structured research plan, and returns it as output.
-// Step Functions passes this output as input to ExecuteAgent.
-
 var handler = async (WorkflowInput input, ILambdaContext context) =>
 {
-    context.Logger.LogInformation($"PlanAgent: planning research for topic '{input.Topic}'");
+    context.Logger.LogInformation(
+        $"[Stage 1/3 — PlanAgent] Decomposing topic: '{input.Topic}'");
 
     var agent = new Agent(
         model: new BedrockModel(
             region: Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1",
             modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
         systemPrompt: """
-            You are a research planning assistant. Given a topic, produce a concise research plan
-            with exactly 3 focus areas. Respond with ONLY a JSON object in this format:
-            {"topic": "...", "focusAreas": ["area1", "area2", "area3"], "objective": "..."}
-            """,
-        toolProviders: [new PlanningTools()]);
+            You are a research planning specialist. Your job is to decompose a broad topic
+            into a structured research plan with 3 specific focus areas.
+
+            For each focus area, provide:
+            - A clear, specific research question (not just a topic label)
+            - Why this question matters for understanding the overall topic
+
+            Respond with ONLY a JSON object in this exact format:
+            {
+              "topic": "the original topic",
+              "objective": "one sentence describing the overall research goal",
+              "focusAreas": [
+                {
+                  "name": "Focus Area Name",
+                  "question": "The specific research question to answer",
+                  "rationale": "Why this question matters"
+                }
+              ]
+            }
+            """);
 
     var result = await agent.InvokeAsync(
         $"Create a research plan for: {input.Topic}");
 
-    // Extract JSON from the agent response
     var json = ExtractJson(result.Message);
-    context.Logger.LogInformation($"PlanAgent: plan produced — {json}");
+    context.Logger.LogInformation(
+        $"[Stage 1/3 — PlanAgent] Plan produced. Passing to Stage 2 (ExecuteAgent) via Step Functions.");
 
-    return JsonSerializer.Deserialize<ResearchPlan>(json, WorkflowJsonContext.Default.ResearchPlan)
-        ?? new ResearchPlan { Topic = input.Topic, FocusAreas = ["Overview"], Objective = "Research the topic" };
+    var plan = JsonSerializer.Deserialize<ResearchPlan>(json, WorkflowJsonContext.Default.ResearchPlan)
+        ?? new ResearchPlan
+        {
+            Topic = input.Topic,
+            Objective = $"Research {input.Topic}",
+            FocusAreas =
+            [
+                new FocusArea { Name = "Overview", Question = $"What is {input.Topic}?", Rationale = "Foundation" }
+            ]
+        };
+
+    // This return value becomes the input to ExecuteAgent.
+    // Step Functions stores it in the execution state — it survives Lambda termination.
+    return plan;
 };
 
 await LambdaBootstrapBuilder
@@ -51,30 +102,35 @@ static string ExtractJson(string text)
     return start >= 0 && end > start ? text[start..(end + 1)] : "{}";
 }
 
+// ── Data contracts ────────────────────────────────────────────────────────────
+// These records define the Step Functions execution state.
+// Each Lambda receives the previous stage's output as its typed input.
+// The contracts are duplicated across Lambda projects intentionally —
+// each Lambda is a separate deployment unit with no shared code dependency.
+
 namespace PlanAgent
 {
-    public partial class PlanningTools
+    // Input to Stage 1
+    public record WorkflowInput(string Topic);
+
+    // Output of Stage 1 / Input to Stage 2
+    public record ResearchPlan
     {
-        [Tool("Validates that a research topic is well-formed and researchable")]
-        public string ValidateTopic(string topic) =>
-            topic.Length < 3 ? "Topic too short — please provide more detail" : $"Topic '{topic}' is valid and researchable";
+        public string Topic { get; init; } = "";
+        public string Objective { get; init; } = "";
+        public FocusArea[] FocusAreas { get; init; } = [];
     }
+
+    public record FocusArea
+    {
+        public string Name { get; init; } = "";
+        public string Question { get; init; } = "";
+        public string Rationale { get; init; } = "";
+    }
+
+    [JsonSerializable(typeof(WorkflowInput))]
+    [JsonSerializable(typeof(ResearchPlan))]
+    [JsonSerializable(typeof(FocusArea))]
+    [JsonSerializable(typeof(FocusArea[]))]
+    public partial class WorkflowJsonContext : JsonSerializerContext { }
 }
-
-// ── Shared data contracts ─────────────────────────────────────────────────────
-// These records define the Step Functions state that flows between Lambda steps.
-// Each Lambda receives the output of the previous step as its input.
-
-public record WorkflowInput(string Topic);
-
-public record ResearchPlan
-{
-    public string Topic { get; init; } = "";
-    public string[] FocusAreas { get; init; } = [];
-    public string Objective { get; init; } = "";
-}
-
-[JsonSerializable(typeof(WorkflowInput))]
-[JsonSerializable(typeof(ResearchPlan))]
-[JsonSerializable(typeof(string))]
-public partial class WorkflowJsonContext : JsonSerializerContext { }
