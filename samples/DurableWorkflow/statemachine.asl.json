@@ -1,0 +1,93 @@
+{
+  "Comment": "DurableWorkflow — three-step research pipeline using Strands Agents .NET. Each step is a separate Lambda function. State flows automatically between steps via Step Functions. The ExecuteAgent step has Retry + Catch for resilience.",
+  "StartAt": "Plan",
+  "States": {
+    "Plan": {
+      "Type": "Task",
+      "Comment": "PlanAgent receives {topic} and returns a ResearchPlan with focusAreas and objective.",
+      "Resource": "${PlanAgentArn}",
+      "Next": "Execute",
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PlanFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "Execute": {
+      "Type": "Task",
+      "Comment": "ExecuteAgent receives the ResearchPlan and returns ResearchFindings. This step has retry + catch to demonstrate Step Functions durability — if this Lambda fails, Step Functions retries automatically.",
+      "Resource": "${ExecuteAgentArn}",
+      "Next": "Summarize",
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        },
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 1,
+          "BackoffRate": 1
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ExecuteFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "Summarize": {
+      "Type": "Task",
+      "Comment": "SummarizeAgent receives ResearchFindings and returns the final WorkflowResult with an executive summary.",
+      "Resource": "${SummarizeAgentArn}",
+      "End": true,
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "SummarizeFailed",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "PlanFailed": {
+      "Type": "Fail",
+      "Error": "PlanAgentFailed",
+      "Cause": "PlanAgent Lambda failed after retries"
+    },
+    "ExecuteFailed": {
+      "Type": "Fail",
+      "Error": "ExecuteAgentFailed",
+      "Cause": "ExecuteAgent Lambda failed after retries"
+    },
+    "SummarizeFailed": {
+      "Type": "Fail",
+      "Error": "SummarizeAgentFailed",
+      "Cause": "SummarizeAgent Lambda failed after retries"
+    }
+  }
+}

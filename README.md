@@ -337,7 +337,7 @@ builder.Services
 
 **Evolving** — multi-agent orchestration API may see refinements before v1.0.
 
-**Coming next** — Ollama model provider, additional built-in tools, expanded multi-agent patterns, Step Functions durability sample.
+**Coming next** — Ollama model provider, additional built-in tools, expanded multi-agent patterns.
 
 ---
 
@@ -380,6 +380,7 @@ builder.Services
 | [AgentCoreSample](samples/AgentCoreSample) | Deploy any agent to AgentCore Runtime — `MapAgentCoreEndpoints()` in one line |
 | [AgentCoreGatewaySample](samples/AgentCoreGatewaySample) | Travel booking assistant using gateway-hosted tools via `AddAgentCoreGatewayTools()` |
 | [AotLambda](samples/AotLambda) | NativeAOT Lambda — sub-100ms cold start, zero runtime reflection, `provided.al2023` runtime |
+| [DurableWorkflow](samples/DurableWorkflow) | Step Functions + three Strands agents — durable multi-step pipeline with retry, state passing, and MAF DurableTask comparison |
 
 ---
 
