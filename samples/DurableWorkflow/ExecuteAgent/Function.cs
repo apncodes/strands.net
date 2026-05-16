@@ -69,7 +69,10 @@ var handler = async (ResearchPlan input, ILambdaContext context) =>
     var agent = new Agent(
         model: new BedrockModel(
             region: Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1",
-            modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
+            // Claude Sonnet 4.6 — chosen for superior tool use and instruction following.
+            // Research execution requires precise tool calls across multiple focus areas.
+            // Using the latest Sonnet here maximises research quality for the most expensive stage.
+            modelId: "us.anthropic.claude-sonnet-4-6"),
         systemPrompt: """
             You are a research execution specialist. Given a specific research question,
             provide a focused, factual answer in 3-4 sentences. Be concrete and specific.

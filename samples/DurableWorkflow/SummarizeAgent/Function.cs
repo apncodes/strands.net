@@ -38,7 +38,10 @@ var handler = async (ResearchFindings input, ILambdaContext context) =>
     var agent = new Agent(
         model: new BedrockModel(
             region: Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1",
-            modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
+            // Amazon Nova Pro — AWS-native model, chosen for synthesis speed and cost efficiency.
+            // Summarization is a writing task, not a reasoning task — Nova Pro excels here.
+            // This demonstrates that each pipeline stage can independently choose its model.
+            modelId: "us.amazon.nova-pro-v1:0"),
         systemPrompt: """
             You are a research synthesis specialist. Given a set of research findings
             organized by focus area, produce a clear executive summary that:

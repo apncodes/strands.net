@@ -144,6 +144,18 @@ No shared database. No message queue. No session manager. **The state machine is
 
 Each agent is completely isolated. It receives typed input, does its job, and returns typed output. The pipeline topology is defined entirely in `statemachine.asl.json` — not in any agent's code.
 
+## Model selection: right-sizing per stage
+
+One of the advantages of the Decomposed Sequential Pipeline pattern is that **each stage can independently choose its model**. In a single-Lambda pipeline, you're locked into one model for the entire workflow. Here, each Lambda is a separate deployment unit with its own model configuration.
+
+| Stage | Model | Rationale |
+|---|---|---|
+| PlanAgent | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Structured reasoning, reliable JSON output. Planning requires careful decomposition — Sonnet's reasoning depth produces well-formed focus areas. |
+| ExecuteAgent | `us.anthropic.claude-sonnet-4-6` | Superior tool use and instruction following. Research execution makes multiple tool calls — the latest Sonnet maximises quality for the most expensive stage. |
+| SummarizeAgent | `us.amazon.nova-pro-v1:0` | AWS-native model, fast synthesis, cost-efficient. Summarization is a writing task, not a reasoning task — Nova Pro excels here and costs less than Sonnet. |
+
+This also demonstrates Bedrock's model flexibility: you can mix Claude and Nova models in the same workflow, choosing the right model for each cognitive task. Swap any model by changing one line in the Lambda's `Function.cs` — no other stage is affected.
+
 ## Prerequisites
 
 - .NET 10 SDK
