@@ -100,9 +100,19 @@ await LambdaBootstrapBuilder
 
 static string ExtractJson(string text)
 {
-    var start = text.IndexOf('{');
-    var end = text.LastIndexOf('}');
-    return start >= 0 && end > start ? text[start..(end + 1)] : "{}";
+    // Strip markdown code blocks if present (model may wrap JSON in ```json ... ```)
+    var stripped = text;
+    var codeBlockStart = text.IndexOf("```");
+    if (codeBlockStart >= 0)
+    {
+        var contentStart = text.IndexOf('\n', codeBlockStart);
+        var codeBlockEnd = text.LastIndexOf("```");
+        if (contentStart >= 0 && codeBlockEnd > contentStart)
+            stripped = text[(contentStart + 1)..codeBlockEnd].Trim();
+    }
+    var start = stripped.IndexOf('{');
+    var end = stripped.LastIndexOf('}');
+    return start >= 0 && end > start ? stripped[start..(end + 1)] : "{}";
 }
 
 // ── Data contracts ────────────────────────────────────────────────────────────
