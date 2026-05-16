@@ -144,6 +144,27 @@ No shared database. No message queue. No session manager. **The state machine is
 
 Each agent is completely isolated. It receives typed input, does its job, and returns typed output. The pipeline topology is defined entirely in `statemachine.asl.json` — not in any agent's code.
 
+## Execution data
+
+Measured on AWS Lambda `us-east-1`, 512 MB memory, `provided.al2023` runtime (NativeAOT), Standard Workflow.
+
+**Topic:** "serverless AI agents on AWS"
+
+| Stage | Lambda | Model | Duration | Notes |
+|---|---|---|---|---|
+| 1 — Plan | `durable-workflow-PlanAgent` | Claude Sonnet 4.6 | **10s** | Decomposed topic into 3 focus areas with research questions |
+| 2 — Execute | `durable-workflow-ExecuteAgent` | Claude Sonnet 4.6 | **164s** | Researched 3 focus areas, 1 LLM call per area with tool use |
+| 3 — Summarize | `durable-workflow-SummarizeAgent` | Amazon Nova Pro | **4s** | Synthesized 3 findings into executive summary |
+| **Total** | | | **183s** | End-to-end pipeline including Step Functions overhead |
+
+**Why Stage 2 dominates:** ExecuteAgent makes 3 sequential Bedrock calls (one per focus area), each involving a tool call and a synthesis response. This is the stage that most benefits from durability — if it fails at area 3 after completing areas 1 and 2, Step Functions retries only Stage 2. Stage 1's output is preserved.
+
+**Sample output (Stage 3 summary):**
+
+> Serverless AI agents on AWS offer a scalable and cost-effective solution for building autonomous workflows, provided the architecture, performance, and cost strategies are carefully optimized. The most effective architecture combines Amazon Bedrock Agents for reasoning, AWS Step Functions for orchestration, AWS Lambda for tool execution, and Amazon EventBridge for event routing. Cold starts are the primary latency threat — Provisioned Concurrency on the primary action group handler is the highest-ROI fix. Bedrock token costs dominate total agent cost (60–90%), making model selection and prompt efficiency the highest-leverage cost controls.
+
+
+
 ## Model selection: right-sizing per stage
 
 One of the advantages of the Decomposed Sequential Pipeline pattern is that **each stage can independently choose its model**. In a single-Lambda pipeline, you're locked into one model for the entire workflow. Here, each Lambda is a separate deployment unit with its own model configuration.
