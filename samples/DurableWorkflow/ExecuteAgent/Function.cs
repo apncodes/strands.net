@@ -75,8 +75,9 @@ var handler = async (ResearchPlan input, ILambdaContext context) =>
             modelId: "us.anthropic.claude-sonnet-4-6"),
         systemPrompt: """
             You are a research execution specialist. Given a specific research question,
-            provide a focused, factual answer in 3-4 sentences. Be concrete and specific.
+            provide a focused, factual answer in 3-4 sentences maximum. Be concrete and specific.
             Use the Research tool to look up information before answering.
+            Keep your response under 200 words. Do not elaborate beyond what is asked.
             """,
         toolProviders: [new ResearchTools()]);
 
